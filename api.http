@@ -1,0 +1,138 @@
+### API Test Collection for the Secure OpenIddict Server
+### This file is specifically tailored to your Program.cs implementation.
+
+# Update the port if your application runs on a different one.
+@baseUrl = https://localhost:7236
+@contentType = application/x-www-form-urlencoded
+@jsonContentType = application/json
+
+###
+# Client and User Configuration
+# These values are taken directly from your database seeding logic in Program.cs
+###
+@clientId = postman
+@clientSecret = postman-secret
+
+# This is the default user seeded by your application
+@username = admin@test.com
+@password = AdminPassword123!
+
+# Variables to store tokens after logging in
+@accessToken = {{login.response.body.access_token}}
+@refreshToken = {{login.response.body.refresh_token}}
+
+
+##################################################
+# 1. USER REGISTRATION
+##################################################
+
+### Register a new user
+# This allows you to create users to test the password flow with.
+POST {{baseUrl}}/register
+Content-Type: {{jsonContentType}}
+
+{
+  "email": "newuser@example.com",
+  "password": "NewUserPassword123!",
+  "firstName": "New",
+  "lastName": "User"
+}
+
+##################################################
+# 2. AUTHENTICATION - PASSWORD FLOW
+##################################################
+
+### Login with the seeded admin user
+# @name login
+POST {{baseUrl}}/connect/token
+Content-Type: {{contentType}}
+
+grant_type=password
+&client_id={{clientId}}
+&client_secret={{clientSecret}}
+&username={{username}}
+&password={{password}}
+&scope=openid profile email roles api
+
+##################################################
+# 3. TOKEN AND USER INFO MANAGEMENT
+##################################################
+
+### Get User Info
+# Requires a valid access token from the login request.
+GET {{baseUrl}}/connect/userinfo
+Authorization: Bearer {{accessToken}}
+
+
+### Refresh the Access Token
+# Uses the refresh token obtained from the login request.
+# @name refreshToken
+POST {{baseUrl}}/connect/token
+Content-Type: {{contentType}}
+
+grant_type=refresh_token
+&client_id={{clientId}}
+&client_secret={{clientSecret}}
+&refresh_token={{refreshToken}}
+
+
+### Introspect the Access Token
+# Checks if the token is still active.
+POST {{baseUrl}}/connect/introspect
+Content-Type: {{contentType}}
+
+token={{accessToken}}
+&client_id={{clientId}}
+&client_secret={{clientSecret}}
+
+
+### Revoke the Refresh Token
+# This will invalidate the refresh token, but the access token will remain valid until it expires.
+POST {{baseUrl}}/connect/revoke
+Content-Type: {{contentType}}
+
+token={{refreshToken}}
+&token_type_hint=refresh_token
+&client_id={{clientId}}
+&client_secret={{clientSecret}}
+
+
+##################################################
+# 4. AUTHENTICATION - CLIENT CREDENTIALS FLOW
+##################################################
+
+### Get a Token for Machine-to-Machine Communication
+# @name clientCredentials
+POST {{baseUrl}}/connect/token
+Content-Type: {{contentType}}
+
+grant_type=client_credentials
+&client_id={{clientId}}
+&client_secret={{clientSecret}}
+&scope=api
+
+### You can inspect the token from the client credentials flow here.
+# Note: You cannot call /connect/userinfo with this token as it does not represent a user.
+GET {{baseUrl}}/connect/userinfo
+Authorization: Bearer {{clientCredentials.response.body.access_token}}
+
+
+##################################################
+# 5. ERROR AND VALIDATION TESTING
+##################################################
+
+### Attempt to login with invalid credentials
+POST {{baseUrl}}/connect/token
+Content-Type: {{contentType}}
+
+grant_type=password
+&client_id={{clientId}}
+&client_secret={{clientSecret}}
+&username=invalid@example.com
+&password=WrongPassword
+&scope=api
+
+
+### Attempt to access a protected resource with an invalid token
+GET {{baseUrl}}/connect/userinfo
+Authorization: Bearer this.is.an.invalid.token
