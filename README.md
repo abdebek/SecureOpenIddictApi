@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This document provides a comprehensive technical guide to the minimal OpenIddict server implementation. The project serves as a foundational example of a secure, token-based authentication and identity provider using .NET 8, ASP.NET Core Identity, and OpenIddict v5.x+.
+This document provides a comprehensive technical guide to the minimal OpenIddict server implementation. The project serves as a foundational example of a secure, token-based authentication and identity provider using .NET 9, ASP.NET Core Identity, and OpenIddict v7.x+.
 
 It is designed to be self-contained, easy to run, and simple to understand, utilizing a local SQLite database for straightforward setup and development.
 
@@ -43,7 +43,7 @@ sequenceDiagram
 
 ### Prerequisites
 
-- .NET 8 SDK
+- .NET 9 SDK
 - An API client like Postman or the REST Client extension for Visual Studio Code.
 
 ### Running the Application
@@ -146,7 +146,7 @@ The server exposes several endpoints for registration and OIDC flows.
 ### Example Request: POST /connect/token (Password Flow)
 
 ```http
-POST http://localhost:5000/connect/token
+POST https://localhost:7236/connect/token
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=password&client_id=postman&client_secret=postman-secret&username=admin@test.com&password=AdminPassword123!&scope=openid profile api
@@ -165,13 +165,13 @@ grant_type=password&client_id=postman&client_secret=postman-secret&username=admi
 
 ## 6. Testing the Server
 
-The included `api-tests.http` file provides a comprehensive suite of requests to test every feature of the server.
+The included `api.http` file provides a comprehensive suite of requests to test every feature of the server.
 
 To use it:
 
 1. Open the project folder in Visual Studio Code.
 2. Install the REST Client extension.
-3. Open the `api-tests.http` file.
+3. Open the `api.http` file.
 4. Click the "Send Request" link that appears above each request block.
 
 The test file is structured to guide you through:
