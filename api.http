@@ -1,138 +1,115 @@
-### API Test Collection for the Secure OpenIddict Server
-### This file is specifically tailored to your Program.cs implementation.
+### Enhanced OpenIddict API Test Suite
+### Supports all OAuth 2.0 flows: Password, Client Credentials, Authorization Code, Refresh Token
 
-# Update the port if your application runs on a different one.
 @baseUrl = https://localhost:7236
-@contentType = application/x-www-form-urlencoded
-@jsonContentType = application/json
-
-###
-# Client and User Configuration
-# These values are taken directly from your database seeding logic in Program.cs
-###
 @clientId = postman
 @clientSecret = postman-secret
-
-# This is the default user seeded by your application
+@webClientId = web-client
 @username = admin@test.com
 @password = AdminPassword123!
 
-# Variables to store tokens after logging in
-@accessToken = {{login.response.body.access_token}}
-@refreshToken = {{login.response.body.refresh_token}}
-
-
-##################################################
-# 1. USER REGISTRATION
-##################################################
-
-### Register a new user
-# This allows you to create users to test the password flow with.
+### 1. User Registration
 POST {{baseUrl}}/register
-Content-Type: {{jsonContentType}}
+Content-Type: application/json
 
 {
-  "email": "newuser@example.com",
-  "password": "NewUserPassword123!",
+  "email": "newuser@test.com",
+  "password": "NewPassword123!",
   "firstName": "New",
   "lastName": "User"
 }
 
-##################################################
-# 2. AUTHENTICATION - PASSWORD FLOW
-##################################################
-
-### Login with the seeded admin user
-# @name login
+### 2. Password Flow (Resource Owner Password Credentials)
 POST {{baseUrl}}/connect/token
-Content-Type: {{contentType}}
+Content-Type: application/x-www-form-urlencoded
 
-grant_type=password
-&client_id={{clientId}}
-&client_secret={{clientSecret}}
-&username={{username}}
-&password={{password}}
-&scope=openid profile email roles api
+grant_type=password&client_id={{clientId}}&client_secret={{clientSecret}}&username={{username}}&password={{password}}&scope=openid profile email api
 
-##################################################
-# 3. TOKEN AND USER INFO MANAGEMENT
-##################################################
+### 3. Client Credentials Flow (Machine-to-Machine)
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
 
-### Get User Info
-# Requires a valid access token from the login request.
+grant_type=client_credentials&client_id={{clientId}}&client_secret={{clientSecret}}&scope=api
+
+### 4. Authorization Code Flow - Step 1: Get Authorization Code
+# ### using a test pkce endpoint - TODO
+# Get {{baseUrl}}/test/pkce
+
+
+### Open this URL in browser (replace with actual values):
+### https://localhost:7236/connect/authorize?response_type=code&client_id=web-client&redirect_uri=https://localhost:7236/callback.html&scope=openid profile email api&state=random_state_123&code_challenge=CODE_CHALLENGE&code_challenge_method=S256
+
+### 4a. Authorization Code Flow - Step 2: Exchange Code for Token
+### (Use the authorization code from step 1)
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&client_id={{webClientId}}&code=AUTHORIZATION_CODE_HERE&redirect_uri=https://localhost:7236/callback.html&code_verifier=CODE_VERIFIER_HERE
+
+### 5. Get User Information (use access token from any flow above)
 GET {{baseUrl}}/connect/userinfo
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer ACCESS_TOKEN_HERE
 
-
-### Refresh the Access Token
-# Uses the refresh token obtained from the login request.
-# @name refreshToken
+### 6. Refresh Token Flow (use refresh token from password or auth code flow)
 POST {{baseUrl}}/connect/token
-Content-Type: {{contentType}}
+Content-Type: application/x-www-form-urlencoded
 
-grant_type=refresh_token
-&client_id={{clientId}}
-&client_secret={{clientSecret}}
-&refresh_token={{refreshToken}}
+grant_type=refresh_token&client_id={{clientId}}&client_secret={{clientSecret}}&refresh_token=REFRESH_TOKEN_HERE
 
-
-### Introspect the Access Token
-# Checks if the token is still active.
+### 7. Token Introspection (check if token is active)
 POST {{baseUrl}}/connect/introspect
-Content-Type: {{contentType}}
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic {{base64(clientId:clientSecret)}}
 
-token={{accessToken}}
-&client_id={{clientId}}
-&client_secret={{clientSecret}}
+token=ACCESS_TOKEN_HERE
 
-
-### Revoke the Refresh Token
-# This will invalidate the refresh token, but the access token will remain valid until it expires.
+### 8. Token Revocation (invalidate token)
 POST {{baseUrl}}/connect/revoke
-Content-Type: {{contentType}}
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic {{base64(clientId:clientSecret)}}
 
-token={{refreshToken}}
-&token_type_hint=refresh_token
-&client_id={{clientId}}
-&client_secret={{clientSecret}}
+token=ACCESS_TOKEN_HERE&token_type_hint=access_token
 
+### 9. OpenID Connect Discovery Document
+GET {{baseUrl}}/.well-known/openid_configuration
 
-##################################################
-# 4. AUTHENTICATION - CLIENT CREDENTIALS FLOW
-##################################################
+### 10. Test Error Cases
 
-### Get a Token for Machine-to-Machine Communication
-# @name clientCredentials
+### 10a. Invalid Password
 POST {{baseUrl}}/connect/token
-Content-Type: {{contentType}}
+Content-Type: application/x-www-form-urlencoded
 
-grant_type=client_credentials
-&client_id={{clientId}}
-&client_secret={{clientSecret}}
-&scope=api
+grant_type=password&client_id={{clientId}}&client_secret={{clientSecret}}&username={{username}}&password=wrongpassword&scope=openid profile email api
 
-### You can inspect the token from the client credentials flow here.
-# Note: You cannot call /connect/userinfo with this token as it does not represent a user.
-GET {{baseUrl}}/connect/userinfo
-Authorization: Bearer {{clientCredentials.response.body.access_token}}
-
-
-##################################################
-# 5. ERROR AND VALIDATION TESTING
-##################################################
-
-### Attempt to login with invalid credentials
+### 10b. Invalid Client
 POST {{baseUrl}}/connect/token
-Content-Type: {{contentType}}
+Content-Type: application/x-www-form-urlencoded
 
-grant_type=password
-&client_id={{clientId}}
-&client_secret={{clientSecret}}
-&username=invalid@example.com
-&password=WrongPassword
-&scope=api
+grant_type=password&client_id=invalid_client&client_secret=invalid_secret&username={{username}}&password={{password}}&scope=openid profile email api
 
+### 10c. Invalid Grant Type
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
 
-### Attempt to access a protected resource with an invalid token
-GET {{baseUrl}}/connect/userinfo
-Authorization: Bearer this.is.an.invalid.token
+grant_type=invalid_grant&client_id={{clientId}}&client_secret={{clientSecret}}
+
+###
+### NOTES:
+###
+### For Authorization Code Flow with PKCE:
+### 1. Generate code_verifier (43-128 characters)
+### 2. Create code_challenge = BASE64URL(SHA256(code_verifier))
+### 3. Use code_challenge in authorization URL
+### 4. Use code_verifier in token exchange
+###
+### Example PKCE values for testing:
+### code_verifier: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+### code_challenge: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+###
+### Web Client Test Flow:
+### 1. Open https://localhost:7236 in browser
+### 2. Click "Login with OpenIddict"
+### 3. Login with admin@test.com / AdminPassword123!
+### 4. Grant consent if required
+### 5. View user information
+###

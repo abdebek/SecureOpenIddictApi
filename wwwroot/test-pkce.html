@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth2 PKCE Test Helper</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+        }
+        .step {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #007bff;
+        }
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .output {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            word-break: break-all;
+            font-family: monospace;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        .copy-btn {
+            background: #28a745;
+            padding: 5px 10px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .copy-btn:hover {
+            background: #218838;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OAuth2 Authorization Code Flow with PKCE - Test Helper</h1>
+        
+        <div class="warning">
+            <strong>Note:</strong> Make sure you're logged in first by visiting <a href="https://localhost:7236" target="_blank">https://localhost:7236</a> and clicking "Login with OpenIddict".
+        </div>
+
+        <div class="step">
+            <h2>Step 1: Generate PKCE Challenge</h2>
+            <button onclick="generatePKCE()">Generate PKCE Values</button>
+            
+            <div id="pkce-output" style="display:none;">
+                <h3>Code Verifier:</h3>
+                <div class="output" id="verifier"></div>
+                <button class="copy-btn" onclick="copyToClipboard('verifier')">Copy</button>
+                
+                <h3>Code Challenge:</h3>
+                <div class="output" id="challenge"></div>
+                <button class="copy-btn" onclick="copyToClipboard('challenge')">Copy</button>
+                
+                <h3>State:</h3>
+                <div class="output" id="state"></div>
+                <button class="copy-btn" onclick="copyToClipboard('state')">Copy</button>
+            </div>
+        </div>
+
+        <div class="step">
+            <h2>Step 2: Get Authorization Code</h2>
+            <p>Click the button below to open the authorization URL in a new tab:</p>
+            <button onclick="openAuthUrl()" id="auth-btn" disabled>Open Authorization URL</button>
+            
+            <div id="auth-url-display" style="display:none;">
+                <h3>Authorization URL:</h3>
+                <div class="code-block" id="auth-url"></div>
+            </div>
+            
+            <p>After authorizing, you'll be redirected to callback.html. Copy the authorization code from the URL:</p>
+            <input type="text" id="auth-code" placeholder="Paste authorization code here">
+        </div>
+
+        <div class="step">
+            <h2>Step 3: Exchange Code for Token</h2>
+            <button onclick="exchangeToken()" id="exchange-btn" disabled>Exchange Code for Token</button>
+            
+            <div id="curl-command" style="display:none;">
+                <h3>cURL Command (for manual testing):</h3>
+                <div class="code-block" id="curl"></div>
+                <button class="copy-btn" onclick="copyToClipboard('curl')">Copy</button>
+            </div>
+            
+            <div id="token-response" style="display:none;">
+                <h3>Token Response:</h3>
+                <div class="output" id="response"></div>
+            </div>
+        </div>
+
+        <div class="step">
+            <h2>Step 4: Use Access Token</h2>
+            <button onclick="getUserInfo()" id="userinfo-btn" disabled>Get User Info</button>
+            
+            <div id="userinfo-response" style="display:none;">
+                <h3>User Info Response:</h3>
+                <div class="output" id="userinfo"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let codeVerifier, codeChallenge, stateValue, accessToken;
+
+        async function generatePKCE() {
+            // Generate code verifier (128 characters)
+            const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+            codeVerifier = '';
+            for (let i = 0; i < 128; i++) {
+                codeVerifier += charset.charAt(Math.floor(Math.random() * charset.length));
+            }
+            
+            // Generate state
+            stateValue = '';
+            for (let i = 0; i < 32; i++) {
+                stateValue += charset.charAt(Math.floor(Math.random() * charset.length));
+            }
+            
+            // Generate code challenge (SHA256 of verifier, base64url encoded)
+            const encoder = new TextEncoder();
+            const data = encoder.encode(codeVerifier);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+            
+            // Display values
+            document.getElementById('verifier').textContent = codeVerifier;
+            document.getElementById('challenge').textContent = codeChallenge;
+            document.getElementById('state').textContent = stateValue;
+            document.getElementById('pkce-output').style.display = 'block';
+            
+            // Enable next step
+            document.getElementById('auth-btn').disabled = false;
+        }
+
+        function openAuthUrl() {
+            const authUrl = `https://localhost:7236/connect/authorize?` +
+                `response_type=code&` +
+                `client_id=web-client&` +
+                `redirect_uri=${encodeURIComponent('https://localhost:7236/callback.html')}&` +
+                `scope=${encodeURIComponent('openid profile email api')}&` +
+                `state=${stateValue}&` +
+                `code_challenge=${codeChallenge}&` +
+                `code_challenge_method=S256`;
+            
+            document.getElementById('auth-url').textContent = authUrl;
+            document.getElementById('auth-url-display').style.display = 'block';
+            
+            window.open(authUrl, '_blank');
+            
+            // Enable exchange button
+            document.getElementById('exchange-btn').disabled = false;
+        }
+
+        async function exchangeToken() {
+            const authCode = document.getElementById('auth-code').value;
+            if (!authCode) {
+                alert('Please paste the authorization code first');
+                return;
+            }
+            
+            // Generate cURL command for reference
+            const curlCommand = `curl -X POST https://localhost:7236/connect/token \\
+  -H "Content-Type: application/x-www-form-urlencoded" \\
+  -d "grant_type=authorization_code" \\
+  -d "client_id=web-client" \\
+  -d "code=${authCode}" \\
+  -d "redirect_uri=https://localhost:7236/callback.html" \\
+  -d "code_verifier=${codeVerifier}"`;
+            
+            document.getElementById('curl').textContent = curlCommand;
+            document.getElementById('curl-command').style.display = 'block';
+            
+            // Make the actual request
+            try {
+                const params = new URLSearchParams({
+                    grant_type: 'authorization_code',
+                    client_id: 'web-client',
+                    code: authCode,
+                    redirect_uri: 'https://localhost:7236/callback.html',
+                    code_verifier: codeVerifier
+                });
+                
+                const response = await fetch('https://localhost:7236/connect/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: params.toString()
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    accessToken = data.access_token;
+                    document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                    document.getElementById('token-response').style.display = 'block';
+                    document.getElementById('userinfo-btn').disabled = false;
+                } else {
+                    document.getElementById('response').textContent = 'Error: ' + JSON.stringify(data, null, 2);
+                    document.getElementById('token-response').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('response').textContent = 'Error: ' + error.message;
+                document.getElementById('token-response').style.display = 'block';
+            }
+        }
+
+        async function getUserInfo() {
+            if (!accessToken) {
+                alert('No access token available');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://localhost:7236/connect/userinfo', {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                const data = await response.json();
+                document.getElementById('userinfo').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('userinfo-response').style.display = 'block';
+            } catch (error) {
+                document.getElementById('userinfo').textContent = 'Error: ' + error.message;
+                document.getElementById('userinfo-response').style.display = 'block';
+            }
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+</html>
